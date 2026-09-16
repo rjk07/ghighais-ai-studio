@@ -106,7 +106,7 @@ export const Route = createFileRoute("/api/generate")({
           });
         }
 
-        const first = await callGateway(firstInput);
+        const first = await callGateway(baseInput);
         if (!first.ok || !first.body) {
           const text = await first.text().catch(() => "");
           return new Response(friendlyError(first.status, text), {
