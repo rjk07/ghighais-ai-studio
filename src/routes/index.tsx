@@ -110,15 +110,25 @@ function Index() {
     localStorage.setItem("ghighais:gh", ghToken);
   }, [ghToken, storageReady]);
 
+  useEffect(() => {
+    if (!storageReady) return;
+    localStorage.setItem("ghighais:chat", JSON.stringify(history.slice(-20)));
+  }, [history, storageReady]);
+
   const runGenerate = useCallback(
-    async (instruction: string, base: string) => {
+    async (instruction: string, base: string, options?: { track?: string }) => {
       setGenerating(true);
       setProgress(3);
+      const priorHistory = historyRef.current;
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: instruction, currentCode: base }),
+          body: JSON.stringify({
+            prompt: instruction,
+            currentCode: base,
+            history: priorHistory,
+          }),
         });
         if (!res.ok || !res.body) {
           throw new Error(await res.text().catch(() => "Gagal menghubungi AI"));
