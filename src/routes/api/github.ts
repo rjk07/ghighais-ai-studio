@@ -104,7 +104,7 @@ export const Route = createFileRoute("/api/github")({
             const url = (body.url ?? "").trim();
             const match = url.match(/github\.com\/([^/\s]+)\/([^/\s#?]+)/i);
             if (!match) return json({ error: "URL GitHub tidak valid" }, 400);
-            const repo = `${match[1]}/${match[2].replace(/\.git$/, "")}`;
+            const repo = `${match[1]}/${String(match[2]).replace(/\.git$/, "")}`;
             const headers = body.token
               ? gh(body.token)
               : { Accept: "application/vnd.github+json", "User-Agent": "ghighais-ai" };
