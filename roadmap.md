@@ -5,4 +5,4 @@
 - [x] Add preview edit undo history
 - [x] Add confirmed page reset
 - [x] Persist work across logout and restore on same device
-- [ ] Verify all interactions on desktop and mobile
+- [x] Verify all interactions on desktop and mobile
