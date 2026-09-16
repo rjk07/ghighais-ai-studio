@@ -62,6 +62,7 @@ function Index() {
   const [storageReady, setStorageReady] = useState(false);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const fixingRef = useRef(false);
+  const historyRef = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
 
   useEffect(() => {
     setUser(localStorage.getItem("ghighais:user"));
