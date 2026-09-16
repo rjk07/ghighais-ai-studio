@@ -34,6 +34,7 @@ export const Route = createFileRoute("/api/generate")({
             ? `Existing document:\n\n${body.currentCode}\n\n---\nUser instruction: ${prompt}\n\nReturn the FULL updated document.`
             : `User instruction: ${prompt}`;
 
+        console.log("[gen] calling gateway");
         const upstream = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
           method: "POST",
           headers: {
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/api/generate")({
           }),
         });
 
+        console.log("[gen] upstream status", upstream.status);
         if (!upstream.ok || !upstream.body) {
           const text = await upstream.text().catch(() => "");
           return new Response(text || "AI error", { status: upstream.status || 500 });
