@@ -45,6 +45,10 @@ export const EDITOR_SCRIPT = `
     if (!el) return post("selection", { info: null });
     el.setAttribute("data-gh-selected", "");
     var cs = getComputedStyle(el);
+    var bg = cs.backgroundImage || "";
+    var bgMatch = bg.match(/url\\(["']?(.*?)["']?\\)/);
+    var isImg = el.tagName.toLowerCase() === "img";
+    var isSvg = el.tagName.toLowerCase() === "svg" || !!el.querySelector("svg");
     post("selection", {
       info: {
         tag: el.tagName.toLowerCase(),
@@ -53,7 +57,9 @@ export const EDITOR_SCRIPT = `
         background: cs.backgroundColor,
         fontSize: parseFloat(cs.fontSize) || 16,
         width: Math.round(el.getBoundingClientRect().width),
-        height: Math.round(el.getBoundingClientRect().height)
+        height: Math.round(el.getBoundingClientRect().height),
+        isImage: isImg || !!bgMatch || isSvg,
+        imageSrc: isImg ? el.getAttribute("src") || "" : bgMatch ? bgMatch[1] : ""
       }
     });
   }
