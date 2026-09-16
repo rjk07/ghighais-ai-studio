@@ -308,6 +308,8 @@ function Index() {
     setPrompt("");
     setGithubUrl("");
     setCode("");
+    setHistory([]);
+    localStorage.setItem("ghighais:chat", "[]");
     setEditMode(false);
     localStorage.setItem("ghighais:prompt", "");
     localStorage.setItem("ghighais:github-url", "");
