@@ -162,8 +162,9 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
               </p>
               {selection.text ? (
                 <div className="space-y-1">
-                  <Label className="text-xs">Teks</Label>
+                  <Label htmlFor="preview-text" className="text-xs">Teks</Label>
                   <Input
+                    id="preview-text"
                     defaultValue={selection.text}
                     onChange={(e) => send("text", { value: e.target.value })}
                   />
@@ -171,8 +172,9 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
               ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Warna teks</Label>
+                  <Label htmlFor="preview-text-color" className="text-xs">Warna teks</Label>
                   <Input
+                    id="preview-text-color"
                     type="color"
                     className="h-9 p-1"
                     defaultValue={rgbToHex(selection.color, "#ffffff")}
@@ -180,8 +182,9 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Warna latar</Label>
+                  <Label htmlFor="preview-background-color" className="text-xs">Warna latar</Label>
                   <Input
+                    id="preview-background-color"
                     type="color"
                     className="h-9 p-1"
                     defaultValue={rgbToHex(selection.background, "#000000")}
@@ -201,16 +204,18 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Lebar (px)</Label>
+                  <Label htmlFor="preview-width" className="text-xs">Lebar (px)</Label>
                   <Input
+                    id="preview-width"
                     type="number"
                     defaultValue={selection.width}
                     onChange={(e) => send("width", { value: Number(e.target.value) })}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Tinggi (px)</Label>
+                  <Label htmlFor="preview-height" className="text-xs">Tinggi (px)</Label>
                   <Input
+                    id="preview-height"
                     type="number"
                     defaultValue={selection.height}
                     onChange={(e) => send("height", { value: Number(e.target.value) })}
