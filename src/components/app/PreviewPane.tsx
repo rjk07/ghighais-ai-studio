@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { EDITOR_SCRIPT } from "@/lib/preview-editor";
+import { EDITOR_MARKER, EDITOR_SCRIPT } from "@/lib/preview-editor";
 
 type Selection = {
   tag: string;
@@ -53,20 +53,29 @@ function rgbToHex(value: string, fallback: string) {
   );
 }
 
-export function PreviewPane({ code, editMode, onToggleEdit, onApply }: Props) {
+export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeError }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
 
-  const srcDoc = useMemo(
-    () => (editMode ? `${code}\n<script>${EDITOR_SCRIPT}</script>` : code),
-    [code, editMode],
-  );
+  const srcDoc = useMemo(() => {
+    const scripts =
+      `\n<script ${EDITOR_MARKER}>${ERROR_REPORTER}</script>` +
+      (editMode ? `\n<script ${EDITOR_MARKER}>${EDITOR_SCRIPT}</script>` : "");
+    return `${code}${scripts}`;
+  }, [code, editMode]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
-      const data = event.data as { source?: string; type?: string; info?: Selection; html?: string };
+      const data = event.data as {
+        source?: string;
+        type?: string;
+        info?: Selection;
+        html?: string;
+        message?: string;
+      };
       if (data?.source !== "ghighais-preview") return;
       if (data.type === "selection") setSelection(data.info ?? null);
+      if (data.type === "error" && data.message) onRuntimeError?.(data.message);
       if (data.type === "applied" && data.html) {
         onApply(data.html);
         setSelection(null);
@@ -74,7 +83,7 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply }: Props) {
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [onApply]);
+  }, [onApply, onRuntimeError]);
 
   useEffect(() => {
     if (!editMode) setSelection(null);
