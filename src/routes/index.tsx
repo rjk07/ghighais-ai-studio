@@ -178,8 +178,12 @@ function Index() {
       toast.error("Tulis instruksi dulu ya");
       return;
     }
-    const ok = await runGenerate(prompt, code);
-    if (ok) toast.success("Kode berhasil dibuat");
+    const instruction = prompt.trim();
+    const ok = await runGenerate(instruction, code, { track: instruction });
+    if (ok) {
+      setPrompt("");
+      toast.success("Kode berhasil dibuat — lanjutkan dengan prompt berikutnya");
+    }
   }
 
   const handleRuntimeError = useCallback(
