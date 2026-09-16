@@ -40,7 +40,11 @@ export const Route = createFileRoute("/api/generate")({
           return new Response("AI belum dikonfigurasi", { status: 500 });
         }
 
-        let body: { prompt?: string; currentCode?: string };
+        let body: {
+          prompt?: string;
+          currentCode?: string;
+          history?: Array<{ role?: string; text?: string }>;
+        };
         try {
           body = await request.json();
         } catch {
