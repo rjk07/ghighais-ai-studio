@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { AppMenu, type Repo } from "@/components/app/AppMenu";
 import { PreviewPane } from "@/components/app/PreviewPane";
+import { CodeEditor } from "@/components/app/CodeEditor";
 import { STARTER_CODE, stripFences } from "@/lib/ghighais";
 
 export const Route = createFileRoute("/")({
@@ -63,7 +64,9 @@ function Index() {
   useEffect(() => {
     setUser(localStorage.getItem("ghighais:user"));
     const saved = localStorage.getItem("ghighais:code");
-    if (saved) setCode(saved);
+    if (saved !== null) setCode(saved);
+    setPrompt(localStorage.getItem("ghighais:prompt") ?? "");
+    setGithubUrl(localStorage.getItem("ghighais:github-url") ?? "");
     const tokens = localStorage.getItem("ghighais:db");
     if (tokens) setDbTokens(JSON.parse(tokens) as Record<string, string>);
     const gh = localStorage.getItem("ghighais:gh");
@@ -71,8 +74,20 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if (code) localStorage.setItem("ghighais:code", code);
+    localStorage.setItem("ghighais:code", code);
   }, [code]);
+
+  useEffect(() => {
+    localStorage.setItem("ghighais:prompt", prompt);
+  }, [prompt]);
+
+  useEffect(() => {
+    localStorage.setItem("ghighais:github-url", githubUrl);
+  }, [githubUrl]);
+
+  useEffect(() => {
+    localStorage.setItem("ghighais:gh", ghToken);
+  }, [ghToken]);
 
   const runGenerate = useCallback(
     async (instruction: string, base: string) => {
@@ -220,6 +235,17 @@ function Index() {
     toast.success("ZIP tersimpan");
   }
 
+  function handleReset() {
+    setPrompt("");
+    setGithubUrl("");
+    setCode("");
+    setEditMode(false);
+    localStorage.setItem("ghighais:prompt", "");
+    localStorage.setItem("ghighais:github-url", "");
+    localStorage.setItem("ghighais:code", "");
+    toast.success("Halaman berhasil dikosongkan");
+  }
+
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
@@ -277,6 +303,7 @@ function Index() {
             pushing={pushing}
             onPush={handlePush}
             onSaveZip={handleZip}
+            onReset={handleReset}
             onHome={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             onLogout={() => {
               localStorage.removeItem("ghighais:user");
@@ -355,12 +382,10 @@ function Index() {
               <span className="size-2.5 rounded-full bg-primary" />
               <h2 className="font-display text-sm font-semibold">Coding</h2>
             </div>
-            <Textarea
+            <CodeEditor
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={setCode}
               disabled={editMode}
-              spellCheck={false}
-              className="min-h-[420px] flex-1 resize-none rounded-none border-0 font-mono text-xs leading-relaxed focus-visible:ring-0"
             />
           </div>
 

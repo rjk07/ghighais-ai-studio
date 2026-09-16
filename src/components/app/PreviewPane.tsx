@@ -7,6 +7,7 @@ import {
   Check,
   MousePointerSquareDashed,
   Pencil,
+  Undo2,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ function rgbToHex(value: string, fallback: string) {
 export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeError }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
   const lastCompleteRef = useRef("");
 
   // Only render documents that are fully written; a half-streamed document
@@ -82,9 +84,11 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
         info?: Selection;
         html?: string;
         message?: string;
+        canUndo?: boolean;
       };
       if (data?.source !== "ghighais-preview") return;
       if (data.type === "selection") setSelection(data.info ?? null);
+      if (data.type === "history") setCanUndo(Boolean(data.canUndo));
       if (data.type === "error" && data.message) onRuntimeError?.(data.message);
       if (data.type === "applied" && data.html) {
         onApply(data.html);
@@ -96,7 +100,10 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
   }, [onApply, onRuntimeError]);
 
   useEffect(() => {
-    if (!editMode) setSelection(null);
+    if (!editMode) {
+      setSelection(null);
+      setCanUndo(false);
+    }
   }, [editMode]);
 
   function send(type: string, payload: Record<string, unknown> = {}) {
@@ -115,9 +122,21 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
         </div>
         <div className="flex items-center gap-2">
           {editMode ? (
-            <Button size="sm" className="gap-2" onClick={() => send("apply")}>
-              <Check className="size-4" /> Terapkan
-            </Button>
+            <>
+              <Button
+                size="icon"
+                variant="secondary"
+                aria-label="Urungkan perubahan terakhir"
+                title="Undo"
+                disabled={!canUndo}
+                onClick={() => send("undo")}
+              >
+                <Undo2 className="size-4" />
+              </Button>
+              <Button size="sm" className="gap-2" onClick={() => send("apply")}>
+                <Check className="size-4" /> Terapkan
+              </Button>
+            </>
           ) : null}
           <Button
             size="sm"
@@ -195,16 +214,16 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dy: -8 })}>
+                <Button aria-label="Geser ke atas" title="Geser ke atas" size="icon" variant="secondary" onClick={() => send("move", { dy: -8 })}>
                   <ArrowUp className="size-4" />
                 </Button>
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dy: 8 })}>
+                <Button aria-label="Geser ke bawah" title="Geser ke bawah" size="icon" variant="secondary" onClick={() => send("move", { dy: 8 })}>
                   <ArrowDown className="size-4" />
                 </Button>
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dx: -8 })}>
+                <Button aria-label="Geser ke kiri" title="Geser ke kiri" size="icon" variant="secondary" onClick={() => send("move", { dx: -8 })}>
                   <ArrowLeft className="size-4" />
                 </Button>
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dx: 8 })}>
+                <Button aria-label="Geser ke kanan" title="Geser ke kanan" size="icon" variant="secondary" onClick={() => send("move", { dx: 8 })}>
                   <ArrowRight className="size-4" />
                 </Button>
                 <Button size="sm" variant="secondary" onClick={() => send("editable")}>
