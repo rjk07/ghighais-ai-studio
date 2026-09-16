@@ -24,6 +24,8 @@ type Selection = {
   fontSize: number;
   width: number;
   height: number;
+  isImage?: boolean;
+  imageSrc?: string;
 };
 
 type Props = {
