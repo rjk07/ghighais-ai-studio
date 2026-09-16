@@ -179,6 +179,30 @@ export const EDITOR_SCRIPT = `
         selected.setAttribute("contenteditable", "true");
         selected.focus();
         break;
+      case "image": {
+        var url = msg.value || "";
+        if (!url) break;
+        var tag = selected.tagName.toLowerCase();
+        if (tag === "img") {
+          selected.setAttribute("src", url);
+          selected.removeAttribute("srcset");
+        } else if ((getComputedStyle(selected).backgroundImage || "").indexOf("url(") >= 0) {
+          selected.style.backgroundImage = 'url("' + url + '")';
+          selected.style.backgroundSize = selected.style.backgroundSize || "cover";
+          selected.style.backgroundPosition = "center";
+        } else {
+          var rect = selected.getBoundingClientRect();
+          var img = document.createElement("img");
+          img.setAttribute("src", url);
+          img.setAttribute("alt", "");
+          img.style.width = Math.round(rect.width || 120) + "px";
+          img.style.height = Math.round(rect.height || 120) + "px";
+          img.style.objectFit = "contain";
+          selected.replaceWith(img);
+          select(img);
+        }
+        break;
+      }
       case "delete": {
         var el = selected;
         select(null);
