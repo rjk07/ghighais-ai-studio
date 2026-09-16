@@ -394,9 +394,30 @@ function Index() {
             </span>
           </div>
 
+          {history.length ? (
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-border bg-background/50 p-3">
+              {history.map((item, i) => (
+                <div
+                  key={`${i}-${item.text.slice(0, 12)}`}
+                  className={
+                    item.role === "user"
+                      ? "ml-auto max-w-[85%] rounded-lg bg-primary/15 px-3 py-2 text-xs"
+                      : "mr-auto max-w-[85%] rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground"
+                  }
+                >
+                  {item.text}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <Textarea
             rows={4}
-            placeholder="Contoh: buatkan landing page toko kopi dengan menu, galeri, dan form pemesanan"
+            placeholder={
+              history.length
+                ? "Lanjutkan: misalnya tambahkan halaman kontak dan ubah warna tombol"
+                : "Contoh: buatkan landing page toko kopi dengan menu, galeri, dan form pemesanan"
+            }
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             disabled={editMode}
