@@ -30,7 +30,17 @@ type Props = {
   editMode: boolean;
   onToggleEdit: (value: boolean) => void;
   onApply: (html: string) => void;
+  onRuntimeError?: (message: string) => void;
 };
+
+const ERROR_REPORTER = `
+window.addEventListener("error", function (e) {
+  parent.postMessage({ source: "ghighais-preview", type: "error", message: (e.message || "Error") + " @" + (e.lineno || 0) }, "*");
+});
+window.addEventListener("unhandledrejection", function (e) {
+  parent.postMessage({ source: "ghighais-preview", type: "error", message: "Promise: " + ((e.reason && e.reason.message) || e.reason) }, "*");
+});
+`;
 
 function rgbToHex(value: string, fallback: string) {
   const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
