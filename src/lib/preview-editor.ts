@@ -5,6 +5,7 @@ export const EDITOR_SCRIPT = `
   var selected = null;
   var history = [];
   var editingSnapshotTaken = false;
+  var lastChange = { key: "", time: 0 };
   var style = document.createElement("style");
   style.setAttribute("${EDITOR_MARKER}", "");
   style.textContent =
@@ -25,10 +26,16 @@ export const EDITOR_SCRIPT = `
     return clone.innerHTML;
   }
 
-  function remember() {
+  function remember(key) {
+    var now = Date.now();
+    if (key && lastChange.key === key && now - lastChange.time < 700) {
+      lastChange.time = now;
+      return;
+    }
     var snapshot = bodySnapshot();
     if (history[history.length - 1] !== snapshot) history.push(snapshot);
     if (history.length > 50) history.shift();
+    lastChange = { key: key || "", time: now };
     post("history", { canUndo: history.length > 0 });
   }
 
@@ -74,7 +81,7 @@ export const EDITOR_SCRIPT = `
       if (!el || !el.getAttribute || !el.hasAttribute("data-gh-selected")) return;
       var cs = getComputedStyle(el);
       var base = el.__ghOffset || { x: 0, y: 0 };
-      remember();
+      remember("drag");
       dragging = { el: el, startX: e.clientX, startY: e.clientY, base: base };
       if (cs.position === "static") el.style.position = "relative";
       e.preventDefault();
@@ -93,7 +100,7 @@ export const EDITOR_SCRIPT = `
   document.addEventListener("beforeinput", function (e) {
     if (!e.target || !e.target.getAttribute || e.target.getAttribute("contenteditable") !== "true") return;
     if (!editingSnapshotTaken) {
-      remember();
+      remember("direct-edit");
       editingSnapshotTaken = true;
     }
   }, true);
@@ -127,10 +134,11 @@ export const EDITOR_SCRIPT = `
         post("selection", { info: null });
       }
       post("history", { canUndo: history.length > 0 });
+      lastChange = { key: "", time: 0 };
       return;
     }
     if (!selected) return;
-    if (msg.type !== "editable") remember();
+    if (msg.type !== "editable") remember(msg.type);
     switch (msg.type) {
       case "text":
         selected.textContent = msg.value;
