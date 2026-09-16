@@ -151,6 +151,15 @@ function Index() {
         }
         setCode(final);
         setProgress(100);
+        if (options?.track) {
+          setHistory((prev) =>
+            [
+              ...prev,
+              { role: "user" as const, text: options.track as string },
+              { role: "assistant" as const, text: "Dokumen aplikasi diperbarui sesuai permintaan." },
+            ].slice(-20),
+          );
+        }
         return true;
       } catch (error) {
         toast.error((error as Error).message);
