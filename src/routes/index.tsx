@@ -112,6 +112,7 @@ function Index() {
   }, [ghToken, storageReady]);
 
   useEffect(() => {
+    historyRef.current = history;
     if (!storageReady) return;
     localStorage.setItem("ghighais:chat", JSON.stringify(history.slice(-20)));
   }, [history, storageReady]);
