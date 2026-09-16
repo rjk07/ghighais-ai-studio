@@ -3,6 +3,9 @@ export const EDITOR_MARKER = "data-ghighais-editor";
 export const EDITOR_SCRIPT = `
 (function () {
   var selected = null;
+  var history = [];
+  var editingSnapshotTaken = false;
+  var lastChange = { key: "", time: 0 };
   var style = document.createElement("style");
   style.setAttribute("${EDITOR_MARKER}", "");
   style.textContent =
@@ -13,6 +16,27 @@ export const EDITOR_SCRIPT = `
 
   function post(type, payload) {
     parent.postMessage(Object.assign({ source: "ghighais-preview", type: type }, payload || {}), "*");
+  }
+
+  function bodySnapshot() {
+    var clone = document.body.cloneNode(true);
+    clone.querySelectorAll("[${EDITOR_MARKER}]").forEach(function (n) { n.remove(); });
+    clone.querySelectorAll("[data-gh-selected]").forEach(function (n) { n.removeAttribute("data-gh-selected"); });
+    clone.querySelectorAll("[contenteditable]").forEach(function (n) { n.removeAttribute("contenteditable"); });
+    return clone.innerHTML;
+  }
+
+  function remember(key) {
+    var now = Date.now();
+    if (key && lastChange.key === key && now - lastChange.time < 700) {
+      lastChange.time = now;
+      return;
+    }
+    var snapshot = bodySnapshot();
+    if (history[history.length - 1] !== snapshot) history.push(snapshot);
+    if (history.length > 50) history.shift();
+    lastChange = { key: key || "", time: now };
+    post("history", { canUndo: history.length > 0 });
   }
 
   function select(el) {
@@ -57,6 +81,7 @@ export const EDITOR_SCRIPT = `
       if (!el || !el.getAttribute || !el.hasAttribute("data-gh-selected")) return;
       var cs = getComputedStyle(el);
       var base = el.__ghOffset || { x: 0, y: 0 };
+      remember("drag");
       dragging = { el: el, startX: e.clientX, startY: e.clientY, base: base };
       if (cs.position === "static") el.style.position = "relative";
       e.preventDefault();
@@ -72,6 +97,14 @@ export const EDITOR_SCRIPT = `
     dragging.el.style.top = y + "px";
   });
   document.addEventListener("mouseup", function () { dragging = null; });
+  document.addEventListener("beforeinput", function (e) {
+    if (!e.target || !e.target.getAttribute || e.target.getAttribute("contenteditable") !== "true") return;
+    if (!editingSnapshotTaken) {
+      remember("direct-edit");
+      editingSnapshotTaken = true;
+    }
+  }, true);
+  document.addEventListener("blur", function () { editingSnapshotTaken = false; }, true);
 
   function clean() {
     var clone = document.documentElement.cloneNode(true);
@@ -93,7 +126,19 @@ export const EDITOR_SCRIPT = `
     var msg = e.data || {};
     if (msg.source !== "ghighais-parent") return;
     if (msg.type === "apply") { post("applied", { html: clean() }); return; }
+    if (msg.type === "undo") {
+      var previous = history.pop();
+      if (typeof previous === "string") {
+        document.body.innerHTML = previous;
+        selected = null;
+        post("selection", { info: null });
+      }
+      post("history", { canUndo: history.length > 0 });
+      lastChange = { key: "", time: 0 };
+      return;
+    }
     if (!selected) return;
+    if (msg.type !== "editable") remember(msg.type);
     switch (msg.type) {
       case "text":
         selected.textContent = msg.value;
@@ -124,6 +169,7 @@ export const EDITOR_SCRIPT = `
         break;
       }
       case "editable":
+        editingSnapshotTaken = false;
         selected.setAttribute("contenteditable", "true");
         selected.focus();
         break;
@@ -137,5 +183,6 @@ export const EDITOR_SCRIPT = `
   });
 
   post("ready", {});
+  post("history", { canUndo: false });
 })();
 `;

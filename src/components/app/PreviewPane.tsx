@@ -7,6 +7,7 @@ import {
   Check,
   MousePointerSquareDashed,
   Pencil,
+  Undo2,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,11 +57,16 @@ function rgbToHex(value: string, fallback: string) {
 export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeError }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
   const lastCompleteRef = useRef("");
 
   // Only render documents that are fully written; a half-streamed document
   // would run broken scripts and report false errors.
   const stableCode = useMemo(() => {
+    if (!code.trim()) {
+      lastCompleteRef.current = "";
+      return "";
+    }
     const isComplete = code.toLowerCase().includes("</html>");
     if (isComplete) lastCompleteRef.current = code;
     return isComplete ? code : lastCompleteRef.current;
@@ -82,9 +88,11 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
         info?: Selection;
         html?: string;
         message?: string;
+        canUndo?: boolean;
       };
       if (data?.source !== "ghighais-preview") return;
       if (data.type === "selection") setSelection(data.info ?? null);
+      if (data.type === "history") setCanUndo(Boolean(data.canUndo));
       if (data.type === "error" && data.message) onRuntimeError?.(data.message);
       if (data.type === "applied" && data.html) {
         onApply(data.html);
@@ -96,7 +104,10 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
   }, [onApply, onRuntimeError]);
 
   useEffect(() => {
-    if (!editMode) setSelection(null);
+    if (!editMode) {
+      setSelection(null);
+      setCanUndo(false);
+    }
   }, [editMode]);
 
   function send(type: string, payload: Record<string, unknown> = {}) {
@@ -115,9 +126,21 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
         </div>
         <div className="flex items-center gap-2">
           {editMode ? (
-            <Button size="sm" className="gap-2" onClick={() => send("apply")}>
-              <Check className="size-4" /> Terapkan
-            </Button>
+            <>
+              <Button
+                size="icon"
+                variant="secondary"
+                aria-label="Urungkan perubahan terakhir"
+                title="Undo"
+                disabled={!canUndo}
+                onClick={() => send("undo")}
+              >
+                <Undo2 className="size-4" />
+              </Button>
+              <Button size="sm" className="gap-2" onClick={() => send("apply")}>
+                <Check className="size-4" /> Terapkan
+              </Button>
+            </>
           ) : null}
           <Button
             size="sm"
@@ -139,8 +162,9 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
               </p>
               {selection.text ? (
                 <div className="space-y-1">
-                  <Label className="text-xs">Teks</Label>
+                  <Label htmlFor="preview-text" className="text-xs">Teks</Label>
                   <Input
+                    id="preview-text"
                     defaultValue={selection.text}
                     onChange={(e) => send("text", { value: e.target.value })}
                   />
@@ -148,8 +172,9 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
               ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Warna teks</Label>
+                  <Label htmlFor="preview-text-color" className="text-xs">Warna teks</Label>
                   <Input
+                    id="preview-text-color"
                     type="color"
                     className="h-9 p-1"
                     defaultValue={rgbToHex(selection.color, "#ffffff")}
@@ -157,8 +182,9 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Warna latar</Label>
+                  <Label htmlFor="preview-background-color" className="text-xs">Warna latar</Label>
                   <Input
+                    id="preview-background-color"
                     type="color"
                     className="h-9 p-1"
                     defaultValue={rgbToHex(selection.background, "#000000")}
@@ -178,16 +204,18 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Lebar (px)</Label>
+                  <Label htmlFor="preview-width" className="text-xs">Lebar (px)</Label>
                   <Input
+                    id="preview-width"
                     type="number"
                     defaultValue={selection.width}
                     onChange={(e) => send("width", { value: Number(e.target.value) })}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Tinggi (px)</Label>
+                  <Label htmlFor="preview-height" className="text-xs">Tinggi (px)</Label>
                   <Input
+                    id="preview-height"
                     type="number"
                     defaultValue={selection.height}
                     onChange={(e) => send("height", { value: Number(e.target.value) })}
@@ -195,16 +223,16 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dy: -8 })}>
+                <Button aria-label="Geser ke atas" title="Geser ke atas" size="icon" variant="secondary" onClick={() => send("move", { dy: -8 })}>
                   <ArrowUp className="size-4" />
                 </Button>
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dy: 8 })}>
+                <Button aria-label="Geser ke bawah" title="Geser ke bawah" size="icon" variant="secondary" onClick={() => send("move", { dy: 8 })}>
                   <ArrowDown className="size-4" />
                 </Button>
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dx: -8 })}>
+                <Button aria-label="Geser ke kiri" title="Geser ke kiri" size="icon" variant="secondary" onClick={() => send("move", { dx: -8 })}>
                   <ArrowLeft className="size-4" />
                 </Button>
-                <Button size="icon" variant="secondary" onClick={() => send("move", { dx: 8 })}>
+                <Button aria-label="Geser ke kanan" title="Geser ke kanan" size="icon" variant="secondary" onClick={() => send("move", { dx: 8 })}>
                   <ArrowRight className="size-4" />
                 </Button>
                 <Button size="sm" variant="secondary" onClick={() => send("editable")}>

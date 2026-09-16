@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Menu, Database, Github, FileArchive, Home, LogOut, Star, Loader2 } from "lucide-react";
+import { Menu, Database, Github, FileArchive, Home, LogOut, Star, Loader2, RotateCcw } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -13,6 +13,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { DATABASES } from "@/lib/ghighais";
 
 export type Repo = { fullName: string; private: boolean; branch: string };
@@ -29,6 +40,7 @@ type Props = {
   pushing: boolean;
   onPush: (repo: string) => void;
   onSaveZip: () => void;
+  onReset: () => void;
   onHome: () => void;
   onLogout: () => void;
 };
@@ -153,6 +165,34 @@ export function AppMenu(props: Props) {
           >
             <FileArchive className="size-4" /> Simpan ke ZIP
           </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start gap-2 text-destructive">
+                <RotateCcw className="size-4" /> Reset Halaman
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Kosongkan halaman?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Prompt, URL GitHub, coding, dan preview akan dikosongkan. Token tersimpan tidak berubah.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => {
+                    props.onReset();
+                    setOpen(false);
+                  }}
+                >
+                  Ya, reset
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Button
             variant="ghost"
