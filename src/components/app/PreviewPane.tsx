@@ -56,13 +56,23 @@ function rgbToHex(value: string, fallback: string) {
 export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeError }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const lastCompleteRef = useRef("");
+
+  // Only render documents that are fully written; a half-streamed document
+  // would run broken scripts and report false errors.
+  const stableCode = useMemo(() => {
+    const isComplete = code.toLowerCase().includes("</html>");
+    if (isComplete) lastCompleteRef.current = code;
+    return isComplete ? code : lastCompleteRef.current;
+  }, [code]);
 
   const srcDoc = useMemo(() => {
+    if (!stableCode.trim()) return "";
     const scripts =
       `\n<script ${EDITOR_MARKER}>${ERROR_REPORTER}</script>` +
       (editMode ? `\n<script ${EDITOR_MARKER}>${EDITOR_SCRIPT}</script>` : "");
-    return `${code}${scripts}`;
-  }, [code, editMode]);
+    return `${stableCode}${scripts}`;
+  }, [stableCode, editMode]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
