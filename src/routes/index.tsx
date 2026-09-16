@@ -214,14 +214,37 @@ function Index() {
         content?: string;
         entry?: string;
         files?: string[];
+        sources?: string;
+        repo?: string;
       };
       if (!res.ok) throw new Error(data.error || "Gagal membuka repository");
-      if (data.content) {
-        setCode(data.content);
+      const isFullPage =
+        (data.content ?? "").toLowerCase().includes("</html>") &&
+        (data.entry ?? "").toLowerCase().endsWith(".html");
+      if (isFullPage) {
+        setCode(data.content as string);
         toast.success(`Repo dibuka: ${data.entry} (${data.files?.length ?? 0} file)`);
-      } else {
-        toast.error("Tidak ada file yang bisa ditampilkan");
+        setHistory((prev) =>
+          [
+            ...prev,
+            { role: "user" as const, text: `Buka aplikasi dari repo ${data.repo ?? githubUrl}` },
+            { role: "assistant" as const, text: "Aplikasi dari repo ditampilkan di preview." },
+          ].slice(-20),
+        );
+        return;
       }
+      if (!data.sources) {
+        toast.error("Tidak ada file yang bisa ditampilkan");
+        return;
+      }
+      setImporting(false);
+      toast.info("Menyusun aplikasi dari isi repository…");
+      const ok = await runGenerate(
+        `Build a single working HTML document that faithfully reproduces the app in this GitHub repository (${data.repo ?? githubUrl}). Keep its pages, layout, styling, texts and interactions. Convert any framework code into plain HTML/CSS/JS in one file.\n\nRepository files:\n${data.sources.slice(0, 60000)}`,
+        "",
+        { track: `Buka dan jalankan aplikasi dari repo ${data.repo ?? githubUrl}` },
+      );
+      if (ok) toast.success("Aplikasi dari repo berhasil ditampilkan");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
