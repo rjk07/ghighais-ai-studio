@@ -131,19 +131,41 @@ export const Route = createFileRoute("/api/github")({
               files.find((f) => f.toLowerCase().endsWith(".html")) ??
               files.find((f) => /\.(tsx|jsx|ts|js|md)$/i.test(f));
 
-            let content = "";
-            if (preferred) {
+            async function readFile(path: string) {
               const fileRes = await fetch(
-                `${GH}/repos/${repo}/contents/${encodeURIComponent(preferred)}?ref=${repoData.default_branch}`,
+                `${GH}/repos/${repo}/contents/${encodeURIComponent(path)}?ref=${repoData.default_branch}`,
                 { headers },
               );
-              if (fileRes.ok) {
-                const data = (await fileRes.json()) as { content?: string };
-                if (data.content) content = fromBase64(data.content);
-              }
+              if (!fileRes.ok) return "";
+              const data = (await fileRes.json()) as { content?: string };
+              return data.content ? fromBase64(data.content) : "";
             }
 
-            return json({ repo, branch: repoData.default_branch, files, entry: preferred, content });
+            let content = preferred ? await readFile(preferred) : "";
+
+            // Collect a few more source files so the AI can rebuild the app
+            // faithfully when the repo is not a single static HTML page.
+            const extra = files
+              .filter((f) => f !== preferred)
+              .filter((f) => /\.(html|css|js|jsx|ts|tsx|json|md)$/i.test(f))
+              .filter((f) => !/node_modules|package-lock|bun\.lock|\.min\./i.test(f))
+              .slice(0, 8);
+
+            let sources = preferred ? `--- FILE: ${preferred} ---\n${content}\n` : "";
+            for (const path of extra) {
+              if (sources.length > 60000) break;
+              const text = await readFile(path);
+              if (text) sources += `\n--- FILE: ${path} ---\n${text.slice(0, 12000)}\n`;
+            }
+
+            return json({
+              repo,
+              branch: repoData.default_branch,
+              files,
+              entry: preferred,
+              content,
+              sources,
+            });
           }
 
           return json({ error: "Aksi tidak dikenal" }, 400);

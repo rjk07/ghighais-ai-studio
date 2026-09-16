@@ -60,7 +60,9 @@ function Index() {
   const [pushing, setPushing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
+  const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const fixingRef = useRef(false);
+  const historyRef = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
 
   useEffect(() => {
     setUser(localStorage.getItem("ghighais:user"));
@@ -78,6 +80,14 @@ function Index() {
     }
     const gh = localStorage.getItem("ghighais:gh");
     if (gh) setGhToken(gh);
+    const chat = localStorage.getItem("ghighais:chat");
+    if (chat) {
+      try {
+        setHistory(JSON.parse(chat) as Array<{ role: "user" | "assistant"; text: string }>);
+      } catch {
+        localStorage.removeItem("ghighais:chat");
+      }
+    }
     setStorageReady(true);
   }, []);
 
@@ -101,15 +111,26 @@ function Index() {
     localStorage.setItem("ghighais:gh", ghToken);
   }, [ghToken, storageReady]);
 
+  useEffect(() => {
+    historyRef.current = history;
+    if (!storageReady) return;
+    localStorage.setItem("ghighais:chat", JSON.stringify(history.slice(-20)));
+  }, [history, storageReady]);
+
   const runGenerate = useCallback(
-    async (instruction: string, base: string) => {
+    async (instruction: string, base: string, options?: { track?: string }) => {
       setGenerating(true);
       setProgress(3);
+      const priorHistory = historyRef.current;
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: instruction, currentCode: base }),
+          body: JSON.stringify({
+            prompt: instruction,
+            currentCode: base,
+            history: priorHistory,
+          }),
         });
         if (!res.ok || !res.body) {
           throw new Error(await res.text().catch(() => "Gagal menghubungi AI"));
@@ -130,6 +151,15 @@ function Index() {
         }
         setCode(final);
         setProgress(100);
+        if (options?.track) {
+          setHistory((prev) =>
+            [
+              ...prev,
+              { role: "user" as const, text: options.track as string },
+              { role: "assistant" as const, text: "Dokumen aplikasi diperbarui sesuai permintaan." },
+            ].slice(-20),
+          );
+        }
         return true;
       } catch (error) {
         toast.error((error as Error).message);
@@ -148,8 +178,12 @@ function Index() {
       toast.error("Tulis instruksi dulu ya");
       return;
     }
-    const ok = await runGenerate(prompt, code);
-    if (ok) toast.success("Kode berhasil dibuat");
+    const instruction = prompt.trim();
+    const ok = await runGenerate(instruction, code, { track: instruction });
+    if (ok) {
+      setPrompt("");
+      toast.success("Kode berhasil dibuat — lanjutkan dengan prompt berikutnya");
+    }
   }
 
   const handleRuntimeError = useCallback(
@@ -180,14 +214,37 @@ function Index() {
         content?: string;
         entry?: string;
         files?: string[];
+        sources?: string;
+        repo?: string;
       };
       if (!res.ok) throw new Error(data.error || "Gagal membuka repository");
-      if (data.content) {
-        setCode(data.content);
+      const isFullPage =
+        (data.content ?? "").toLowerCase().includes("</html>") &&
+        (data.entry ?? "").toLowerCase().endsWith(".html");
+      if (isFullPage) {
+        setCode(data.content as string);
         toast.success(`Repo dibuka: ${data.entry} (${data.files?.length ?? 0} file)`);
-      } else {
-        toast.error("Tidak ada file yang bisa ditampilkan");
+        setHistory((prev) =>
+          [
+            ...prev,
+            { role: "user" as const, text: `Buka aplikasi dari repo ${data.repo ?? githubUrl}` },
+            { role: "assistant" as const, text: "Aplikasi dari repo ditampilkan di preview." },
+          ].slice(-20),
+        );
+        return;
       }
+      if (!data.sources) {
+        toast.error("Tidak ada file yang bisa ditampilkan");
+        return;
+      }
+      setImporting(false);
+      toast.info("Menyusun aplikasi dari isi repository…");
+      const ok = await runGenerate(
+        `Build a single working HTML document that faithfully reproduces the app in this GitHub repository (${data.repo ?? githubUrl}). Keep its pages, layout, styling, texts and interactions. Convert any framework code into plain HTML/CSS/JS in one file.\n\nRepository files:\n${data.sources.slice(0, 60000)}`,
+        "",
+        { track: `Buka dan jalankan aplikasi dari repo ${data.repo ?? githubUrl}` },
+      );
+      if (ok) toast.success("Aplikasi dari repo berhasil ditampilkan");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -251,6 +308,8 @@ function Index() {
     setPrompt("");
     setGithubUrl("");
     setCode("");
+    setHistory([]);
+    localStorage.setItem("ghighais:chat", "[]");
     setEditMode(false);
     localStorage.setItem("ghighais:prompt", "");
     localStorage.setItem("ghighais:github-url", "");
@@ -335,9 +394,30 @@ function Index() {
             </span>
           </div>
 
+          {history.length ? (
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-border bg-background/50 p-3">
+              {history.map((item, i) => (
+                <div
+                  key={`${i}-${item.text.slice(0, 12)}`}
+                  className={
+                    item.role === "user"
+                      ? "ml-auto max-w-[85%] rounded-lg bg-primary/15 px-3 py-2 text-xs"
+                      : "mr-auto max-w-[85%] rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground"
+                  }
+                >
+                  {item.text}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <Textarea
             rows={4}
-            placeholder="Contoh: buatkan landing page toko kopi dengan menu, galeri, dan form pemesanan"
+            placeholder={
+              history.length
+                ? "Lanjutkan: misalnya tambahkan halaman kontak dan ubah warna tombol"
+                : "Contoh: buatkan landing page toko kopi dengan menu, galeri, dan form pemesanan"
+            }
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             disabled={editMode}

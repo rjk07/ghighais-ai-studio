@@ -40,7 +40,11 @@ export const Route = createFileRoute("/api/generate")({
           return new Response("AI belum dikonfigurasi", { status: 500 });
         }
 
-        let body: { prompt?: string; currentCode?: string };
+        let body: {
+          prompt?: string;
+          currentCode?: string;
+          history?: Array<{ role?: string; text?: string }>;
+        };
         try {
           body = await request.json();
         } catch {
@@ -54,6 +58,35 @@ export const Route = createFileRoute("/api/generate")({
           body.currentCode && body.currentCode.trim().length > 0
             ? `Existing document:\n\n${body.currentCode}\n\n---\nUser instruction: ${prompt}\n\nReturn the FULL updated document.`
             : `User instruction: ${prompt}`;
+
+        // Continuous conversation: earlier turns are replayed so the user can
+        // keep refining the same app with follow-up prompts.
+        const turns = (body.history ?? [])
+          .filter((h) => (h.text ?? "").trim().length > 0)
+          .slice(-8);
+        const baseInput: GatewayInput = turns.length
+          ? [
+              ...turns.map((h) =>
+                h.role === "assistant"
+                  ? {
+                      role: "assistant" as const,
+                      content: [
+                        {
+                          type: "output_text" as const,
+                          text: (h.text ?? "").slice(0, 2000),
+                        },
+                      ],
+                    }
+                  : {
+                      role: "user" as const,
+                      content: [
+                        { type: "input_text" as const, text: (h.text ?? "").slice(0, 2000) },
+                      ],
+                    },
+              ),
+              { role: "user" as const, content: [{ type: "input_text" as const, text: firstInput }] },
+            ]
+          : firstInput;
 
         async function callGateway(input: GatewayInput) {
           return fetch("https://ai.gateway.lovable.dev/v1/responses", {
@@ -73,7 +106,7 @@ export const Route = createFileRoute("/api/generate")({
           });
         }
 
-        const first = await callGateway(firstInput);
+        const first = await callGateway(baseInput);
         if (!first.ok || !first.body) {
           const text = await first.text().catch(() => "");
           return new Response(friendlyError(first.status, text), {

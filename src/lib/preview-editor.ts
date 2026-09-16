@@ -45,6 +45,10 @@ export const EDITOR_SCRIPT = `
     if (!el) return post("selection", { info: null });
     el.setAttribute("data-gh-selected", "");
     var cs = getComputedStyle(el);
+    var bg = cs.backgroundImage || "";
+    var bgMatch = bg.match(/url\\(["']?(.*?)["']?\\)/);
+    var isImg = el.tagName.toLowerCase() === "img";
+    var isSvg = el.tagName.toLowerCase() === "svg" || !!el.querySelector("svg");
     post("selection", {
       info: {
         tag: el.tagName.toLowerCase(),
@@ -53,7 +57,9 @@ export const EDITOR_SCRIPT = `
         background: cs.backgroundColor,
         fontSize: parseFloat(cs.fontSize) || 16,
         width: Math.round(el.getBoundingClientRect().width),
-        height: Math.round(el.getBoundingClientRect().height)
+        height: Math.round(el.getBoundingClientRect().height),
+        isImage: isImg || !!bgMatch || isSvg,
+        imageSrc: isImg ? el.getAttribute("src") || "" : bgMatch ? bgMatch[1] : ""
       }
     });
   }
@@ -173,6 +179,30 @@ export const EDITOR_SCRIPT = `
         selected.setAttribute("contenteditable", "true");
         selected.focus();
         break;
+      case "image": {
+        var url = msg.value || "";
+        if (!url) break;
+        var tag = selected.tagName.toLowerCase();
+        if (tag === "img") {
+          selected.setAttribute("src", url);
+          selected.removeAttribute("srcset");
+        } else if ((getComputedStyle(selected).backgroundImage || "").indexOf("url(") >= 0) {
+          selected.style.backgroundImage = 'url("' + url + '")';
+          selected.style.backgroundSize = selected.style.backgroundSize || "cover";
+          selected.style.backgroundPosition = "center";
+        } else {
+          var rect = selected.getBoundingClientRect();
+          var img = document.createElement("img");
+          img.setAttribute("src", url);
+          img.setAttribute("alt", "");
+          img.style.width = Math.round(rect.width || 120) + "px";
+          img.style.height = Math.round(rect.height || 120) + "px";
+          img.style.objectFit = "contain";
+          selected.replaceWith(img);
+          select(img);
+        }
+        break;
+      }
       case "delete": {
         var el = selected;
         select(null);
