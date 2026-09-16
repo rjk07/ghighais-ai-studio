@@ -79,6 +79,14 @@ function Index() {
     }
     const gh = localStorage.getItem("ghighais:gh");
     if (gh) setGhToken(gh);
+    const chat = localStorage.getItem("ghighais:chat");
+    if (chat) {
+      try {
+        setHistory(JSON.parse(chat) as Array<{ role: "user" | "assistant"; text: string }>);
+      } catch {
+        localStorage.removeItem("ghighais:chat");
+      }
+    }
     setStorageReady(true);
   }, []);
 
