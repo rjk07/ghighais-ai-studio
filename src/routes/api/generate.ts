@@ -59,6 +59,35 @@ export const Route = createFileRoute("/api/generate")({
             ? `Existing document:\n\n${body.currentCode}\n\n---\nUser instruction: ${prompt}\n\nReturn the FULL updated document.`
             : `User instruction: ${prompt}`;
 
+        // Continuous conversation: earlier turns are replayed so the user can
+        // keep refining the same app with follow-up prompts.
+        const turns = (body.history ?? [])
+          .filter((h) => (h.text ?? "").trim().length > 0)
+          .slice(-8);
+        const baseInput: GatewayInput = turns.length
+          ? [
+              ...turns.map((h) =>
+                h.role === "assistant"
+                  ? {
+                      role: "assistant" as const,
+                      content: [
+                        {
+                          type: "output_text" as const,
+                          text: (h.text ?? "").slice(0, 2000),
+                        },
+                      ],
+                    }
+                  : {
+                      role: "user" as const,
+                      content: [
+                        { type: "input_text" as const, text: (h.text ?? "").slice(0, 2000) },
+                      ],
+                    },
+              ),
+              { role: "user" as const, content: [{ type: "input_text" as const, text: firstInput }] },
+            ]
+          : firstInput;
+
         async function callGateway(input: GatewayInput) {
           return fetch("https://ai.gateway.lovable.dev/v1/responses", {
             method: "POST",
