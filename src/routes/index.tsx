@@ -60,6 +60,7 @@ function Index() {
   const [pushing, setPushing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
+  const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const fixingRef = useRef(false);
 
   useEffect(() => {
