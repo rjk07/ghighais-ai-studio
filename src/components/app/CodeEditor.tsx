@@ -14,11 +14,12 @@ function escapeHtml(value: string) {
 }
 
 function colorizeTag(tag: string) {
-  const escaped = escapeHtml(tag);
-  return escaped
-    .replace(/(&lt;\/?)([A-Za-z][\w:-]*)/, '$1<span class="code-tag">$2</span>')
-    .replace(/\s([\w:-]+)(?==)/g, ' <span class="code-attr">$1</span>')
-    .replace(/(&quot;[^&]*?&quot;|&#39;[^&]*?&#39;)/g, '<span class="code-string">$1</span>');
+  return escapeHtml(tag)
+    .replace(
+      /\s([\w:-]+)(\s*=\s*)(&quot;.*?&quot;|'.*?'|[^\s&]+)(?=\s|&gt;)/g,
+      ' <span class="code-attr">$1</span>$2<span class="code-string">$3</span>',
+    )
+    .replace(/^(?:&lt;)(\/)?([A-Za-z][\w:-]*)/, '&lt;$1<span class="code-tag">$2</span>');
 }
 
 function highlight(source: string) {

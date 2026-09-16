@@ -59,6 +59,7 @@ function Index() {
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
   const fixingRef = useRef(false);
 
   useEffect(() => {
@@ -68,26 +69,37 @@ function Index() {
     setPrompt(localStorage.getItem("ghighais:prompt") ?? "");
     setGithubUrl(localStorage.getItem("ghighais:github-url") ?? "");
     const tokens = localStorage.getItem("ghighais:db");
-    if (tokens) setDbTokens(JSON.parse(tokens) as Record<string, string>);
+    if (tokens) {
+      try {
+        setDbTokens(JSON.parse(tokens) as Record<string, string>);
+      } catch {
+        localStorage.removeItem("ghighais:db");
+      }
+    }
     const gh = localStorage.getItem("ghighais:gh");
     if (gh) setGhToken(gh);
+    setStorageReady(true);
   }, []);
 
   useEffect(() => {
+    if (!storageReady) return;
     localStorage.setItem("ghighais:code", code);
-  }, [code]);
+  }, [code, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
     localStorage.setItem("ghighais:prompt", prompt);
-  }, [prompt]);
+  }, [prompt, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
     localStorage.setItem("ghighais:github-url", githubUrl);
-  }, [githubUrl]);
+  }, [githubUrl, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) return;
     localStorage.setItem("ghighais:gh", ghToken);
-  }, [ghToken]);
+  }, [ghToken, storageReady]);
 
   const runGenerate = useCallback(
     async (instruction: string, base: string) => {

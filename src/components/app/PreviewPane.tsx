@@ -63,6 +63,10 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
   // Only render documents that are fully written; a half-streamed document
   // would run broken scripts and report false errors.
   const stableCode = useMemo(() => {
+    if (!code.trim()) {
+      lastCompleteRef.current = "";
+      return "";
+    }
     const isComplete = code.toLowerCase().includes("</html>");
     if (isComplete) lastCompleteRef.current = code;
     return isComplete ? code : lastCompleteRef.current;
