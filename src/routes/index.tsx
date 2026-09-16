@@ -1,24 +1,381 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import JSZip from "jszip";
+import { Github, Loader2, Sparkles, Wand2, Bot } from "lucide-react";
+import { toast, Toaster } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { AppMenu, type Repo } from "@/components/app/AppMenu";
+import { PreviewPane } from "@/components/app/PreviewPane";
+import { STARTER_CODE, stripFences } from "@/lib/ghighais";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "GHIGHAIS AI — Generator Aplikasi dari Prompt" },
+      {
+        name: "description",
+        content:
+          "GHIGHAIS AI: tulis prompt, dapatkan kode tanpa error, edit preview langsung, push ke GitHub, dan simpan ke ZIP.",
+      },
+      { property: "og:title", content: "GHIGHAIS AI — Generator Aplikasi dari Prompt" },
+      {
+        property: "og:description",
+        content: "Buat aplikasi dari prompt, edit preview visual, push GitHub, simpan ZIP.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Logo() {
   return (
     <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+      className="flex size-9 items-center justify-center rounded-xl"
+      style={{ background: "var(--gradient-brand)", boxShadow: "var(--shadow-glow)" }}
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+      <Bot className="size-5 text-primary-foreground" />
+    </div>
+  );
+}
+
+function Index() {
+  const [user, setUser] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [githubUrl, setGithubUrl] = useState("");
+  const [code, setCode] = useState(STARTER_CODE);
+  const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [editMode, setEditMode] = useState(false);
+  const [dbTokens, setDbTokens] = useState<Record<string, string>>({});
+  const [ghToken, setGhToken] = useState("");
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fixingRef = useRef(false);
+
+  useEffect(() => {
+    setUser(localStorage.getItem("ghighais:user"));
+    const saved = localStorage.getItem("ghighais:code");
+    if (saved) setCode(saved);
+    const tokens = localStorage.getItem("ghighais:db");
+    if (tokens) setDbTokens(JSON.parse(tokens) as Record<string, string>);
+    const gh = localStorage.getItem("ghighais:gh");
+    if (gh) setGhToken(gh);
+  }, []);
+
+  useEffect(() => {
+    if (code) localStorage.setItem("ghighais:code", code);
+  }, [code]);
+
+  const runGenerate = useCallback(
+    async (instruction: string, base: string) => {
+      setGenerating(true);
+      setProgress(3);
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: instruction, currentCode: base }),
+        });
+        if (!res.ok || !res.body) {
+          throw new Error(await res.text().catch(() => "Gagal menghubungi AI"));
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let acc = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          acc += decoder.decode(value, { stream: true });
+          setProgress(Math.min(97, Math.round((acc.length / 4500) * 100)));
+          if (acc.length > 200) setCode(stripFences(acc));
+        }
+        const final = stripFences(acc);
+        if (!final.toLowerCase().includes("<html")) {
+          throw new Error("Hasil AI tidak lengkap, coba ulangi prompt");
+        }
+        setCode(final);
+        setProgress(100);
+        return true;
+      } catch (error) {
+        toast.error((error as Error).message);
+        setProgress(0);
+        return false;
+      } finally {
+        setGenerating(false);
+        setTimeout(() => setProgress(0), 1500);
+      }
+    },
+    [],
+  );
+
+  async function handleGenerate() {
+    if (!prompt.trim()) {
+      toast.error("Tulis instruksi dulu ya");
+      return;
+    }
+    const ok = await runGenerate(prompt, code);
+    if (ok) toast.success("Kode berhasil dibuat");
+  }
+
+  const handleRuntimeError = useCallback(
+    async (message: string) => {
+      if (fixingRef.current || generating) return;
+      fixingRef.current = true;
+      toast.info("Error terdeteksi, AI sedang memperbaiki…");
+      await runGenerate(
+        `The document has a runtime error: "${message}". Fix it completely and return the full corrected document with identical design and features.`,
+        code,
+      );
+      setTimeout(() => (fixingRef.current = false), 4000);
+    },
+    [code, generating, runGenerate],
+  );
+
+  async function handleImport() {
+    if (!githubUrl.trim()) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import", url: githubUrl, token: ghToken || undefined }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        content?: string;
+        entry?: string;
+        files?: string[];
+      };
+      if (!res.ok) throw new Error(data.error || "Gagal membuka repository");
+      if (data.content) {
+        setCode(data.content);
+        toast.success(`Repo dibuka: ${data.entry} (${data.files?.length ?? 0} file)`);
+      } else {
+        toast.error("Tidak ada file yang bisa ditampilkan");
+      }
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function handleLoadRepos() {
+    setLoadingRepos(true);
+    try {
+      const res = await fetch("/api/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "repos", token: ghToken }),
+      });
+      const data = (await res.json()) as { repos?: Repo[]; error?: string };
+      if (!res.ok) throw new Error(data.error || "Gagal memuat repository");
+      setRepos(data.repos ?? []);
+      localStorage.setItem("ghighais:gh", ghToken);
+      toast.success(`${data.repos?.length ?? 0} repository ditemukan`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setLoadingRepos(false);
+    }
+  }
+
+  async function handlePush(repo: string) {
+    setPushing(true);
+    try {
+      const res = await fetch("/api/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "push", token: ghToken, repo, content: code }),
+      });
+      const data = (await res.json()) as { error?: string; url?: string };
+      if (!res.ok) throw new Error(data.error || "Gagal push");
+      toast.success(`Berhasil push ke ${repo}`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setPushing(false);
+    }
+  }
+
+  async function handleZip() {
+    const zip = new JSZip();
+    zip.file("index.html", code);
+    zip.file("README.md", "# Dibuat dengan GHIGHAIS AI\n");
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ghighais-ai.zip";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("ZIP tersimpan");
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <Toaster position="top-center" />
+        <div className="panel w-full max-w-sm space-y-4 p-6 text-center">
+          <div className="flex justify-center">
+            <Logo />
+          </div>
+          <h1 className="brand-text font-display text-2xl font-bold">GHIGHAIS AI</h1>
+          <p className="text-sm text-muted-foreground">Masuk untuk mulai membuat aplikasi.</p>
+          <Input
+            placeholder="Nama kamu"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+          />
+          <Button
+            className="w-full"
+            onClick={() => {
+              const name = nameInput.trim() || "Pengguna";
+              localStorage.setItem("ghighais:user", name);
+              setUser(name);
+            }}
+          >
+            Masuk
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen pb-16">
+      <Toaster position="top-center" />
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Logo />
+            <span className="brand-text font-display text-lg font-bold tracking-tight">
+              GHIGHAIS AI
+            </span>
+          </div>
+          <AppMenu
+            disabled={editMode}
+            dbTokens={dbTokens}
+            onDbToken={(id, value) => {
+              const next = { ...dbTokens, [id]: value };
+              setDbTokens(next);
+              localStorage.setItem("ghighais:db", JSON.stringify(next));
+            }}
+            ghToken={ghToken}
+            onGhToken={setGhToken}
+            repos={repos}
+            loadingRepos={loadingRepos}
+            onLoadRepos={handleLoadRepos}
+            pushing={pushing}
+            onPush={handlePush}
+            onSaveZip={handleZip}
+            onHome={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            onLogout={() => {
+              localStorage.removeItem("ghighais:user");
+              setUser(null);
+            }}
+          />
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+        <section className="panel space-y-4 p-5" style={{ backgroundImage: "var(--gradient-hero)" }}>
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-4 text-primary" />
+            <h1 className="font-display text-xl font-bold">Beranda</h1>
+            <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+              Prompt unlimited · gratis
+            </span>
+          </div>
+
+          <Textarea
+            rows={4}
+            placeholder="Contoh: buatkan landing page toko kopi dengan menu, galeri, dan form pemesanan"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            disabled={editMode}
+            className="font-body"
+          />
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              className="gap-2 sm:w-48"
+              onClick={handleGenerate}
+              disabled={generating || editMode}
+            >
+              {generating ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Wand2 className="size-4" />
+              )}
+              Generate
+            </Button>
+            <div className="flex flex-1 gap-2">
+              <Input
+                placeholder="Tempel URL GitHub repo…"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                disabled={editMode}
+              />
+              <Button
+                variant="secondary"
+                className="gap-2"
+                onClick={handleImport}
+                disabled={importing || editMode}
+              >
+                {importing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Github className="size-4" />
+                )}
+                Buka
+              </Button>
+            </div>
+          </div>
+
+          {progress > 0 ? (
+            <div className="space-y-1">
+              <Progress value={progress} />
+              <p className="text-xs text-muted-foreground">Proses generate {progress}%</p>
+            </div>
+          ) : null}
+        </section>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="panel flex h-full flex-col overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+              <span className="size-2.5 rounded-full bg-primary" />
+              <h2 className="font-display text-sm font-semibold">Coding</h2>
+            </div>
+            <Textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              disabled={editMode}
+              spellCheck={false}
+              className="min-h-[420px] flex-1 resize-none rounded-none border-0 font-mono text-xs leading-relaxed focus-visible:ring-0"
+            />
+          </div>
+
+          <PreviewPane
+            code={code}
+            editMode={editMode}
+            onToggleEdit={setEditMode}
+            onApply={(html) => {
+              setCode(html);
+              toast.success("Perubahan preview diterapkan ke coding");
+            }}
+            onRuntimeError={handleRuntimeError}
+          />
+        </div>
+      </main>
     </div>
   );
 }
