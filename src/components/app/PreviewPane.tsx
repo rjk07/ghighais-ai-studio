@@ -172,6 +172,51 @@ export function PreviewPane({ code, editMode, onToggleEdit, onApply, onRuntimeEr
                   />
                 </div>
               ) : null}
+              {selection.isImage ? (
+                <div className="space-y-2 rounded-lg border border-border bg-background/40 p-3">
+                  <Label htmlFor="preview-image-url" className="text-xs">
+                    Ganti gambar / logo (URL)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="preview-image-url"
+                      placeholder="https://…"
+                      defaultValue={selection.imageSrc ?? ""}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") send("image", { value: e.currentTarget.value });
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        const input = document.getElementById(
+                          "preview-image-url",
+                        ) as HTMLInputElement | null;
+                        if (input?.value) send("image", { value: input.value });
+                      }}
+                    >
+                      Pasang
+                    </Button>
+                  </div>
+                  <Label htmlFor="preview-image-file" className="text-xs">
+                    Atau unggah dari perangkat
+                  </Label>
+                  <Input
+                    id="preview-image-file"
+                    type="file"
+                    accept="image/*"
+                    className="text-xs"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => send("image", { value: String(reader.result) });
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </div>
+              ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="preview-text-color" className="text-xs">Warna teks</Label>
