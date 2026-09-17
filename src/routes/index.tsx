@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
-import { Github, Loader2, Sparkles, Wand2, Bot, Paperclip, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Github,
+  Loader2,
+  Sparkles,
+  Wand2,
+  Bot,
+  Paperclip,
+  X,
+} from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
