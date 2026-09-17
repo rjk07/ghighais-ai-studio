@@ -12,6 +12,7 @@ import { PreviewPane } from "@/components/app/PreviewPane";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { STARTER_CODE, stripFences } from "@/lib/ghighais";
 import { isMigrationPrompt, migrationInstruction } from "@/lib/migration";
+import { extractSecrets, hasDatabase } from "@/lib/secure-scan";
 import {
   applyMedia,
   fileToAsset,

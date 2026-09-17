@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiGenerateRouteImport } from './routes/api/generate'
 import { Route as ApiGithubRouteImport } from './routes/api/github'
+import { Route as ApiVaultRouteImport } from './routes/api/vault'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,44 @@ const ApiGithubRoute = ApiGithubRouteImport.update({
   path: '/api/github',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVaultRoute = ApiVaultRouteImport.update({
+  id: '/api/vault',
+  path: '/api/vault',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/generate': typeof ApiGenerateRoute
   '/api/github': typeof ApiGithubRoute
+  '/api/vault': typeof ApiVaultRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/generate': typeof ApiGenerateRoute
   '/api/github': typeof ApiGithubRoute
+  '/api/vault': typeof ApiVaultRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/generate': typeof ApiGenerateRoute
   '/api/github': typeof ApiGithubRoute
+  '/api/vault': typeof ApiVaultRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/generate' | '/api/github'
+  fullPaths: '/' | '/api/generate' | '/api/github' | '/api/vault'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/generate' | '/api/github'
-  id: '__root__' | '/' | '/api/generate' | '/api/github'
+  to: '/' | '/api/generate' | '/api/github' | '/api/vault'
+  id: '__root__' | '/' | '/api/generate' | '/api/github' | '/api/vault'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiGenerateRoute: typeof ApiGenerateRoute
   ApiGithubRoute: typeof ApiGithubRoute
+  ApiVaultRoute: typeof ApiVaultRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/vault': {
+      id: '/api/vault'
+      path: '/api/vault'
+      fullPath: '/api/vault'
+      preLoaderRoute: typeof ApiVaultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiGenerateRoute: ApiGenerateRoute,
   ApiGithubRoute: ApiGithubRoute,
+  ApiVaultRoute: ApiVaultRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
