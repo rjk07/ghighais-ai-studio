@@ -340,6 +340,7 @@ function Index() {
     setGithubUrl("");
     setCode("");
     setHistory([]);
+    setMedia([]);
     localStorage.setItem("ghighais:chat", "[]");
     setEditMode(false);
     localStorage.setItem("ghighais:prompt", "");
