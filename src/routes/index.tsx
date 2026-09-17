@@ -208,7 +208,9 @@ function Index() {
       return;
     }
     const instruction = prompt.trim();
-    const ok = await runGenerate(instruction, code, { track: instruction });
+    const ok = await runGenerate(instruction + mediaInstruction(media), code, {
+      track: media.length ? `${instruction} (+${media.length} media)` : instruction,
+    });
     if (ok) {
       setPrompt("");
       toast.success("Kode berhasil dibuat — lanjutkan dengan prompt berikutnya");
