@@ -218,7 +218,7 @@ function Index() {
         if (!final.toLowerCase().includes("<html")) {
           throw new Error("Hasil AI tidak lengkap, coba ulangi prompt");
         }
-        setCode(final);
+        setCode(await secureCode(final));
         setProgress(100);
         if (options?.track) {
           setHistory((prev) =>
