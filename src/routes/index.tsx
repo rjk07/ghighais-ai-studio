@@ -11,6 +11,12 @@ import { AppMenu, type Repo } from "@/components/app/AppMenu";
 import { PreviewPane } from "@/components/app/PreviewPane";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { STARTER_CODE, stripFences } from "@/lib/ghighais";
+import {
+  applyMedia,
+  fileToAsset,
+  mediaInstruction,
+  type MediaAsset,
+} from "@/lib/media";
 
 export const Route = createFileRoute("/")({
   head: () => ({
