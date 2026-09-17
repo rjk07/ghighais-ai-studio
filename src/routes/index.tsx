@@ -146,6 +146,11 @@ function Index() {
       setGenerating(true);
       setProgress(3);
       const priorHistory = historyRef.current;
+      // Kirim kode dengan media kembali menjadi placeholder supaya ringan.
+      const compactBase = mediaRef.current.reduce(
+        (acc, asset, i) => acc.split(asset.dataUrl).join(`__MEDIA_${i + 1}__`),
+        base,
+      );
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
