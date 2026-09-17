@@ -455,6 +455,66 @@ function Index() {
             className="font-body"
           />
 
+          <div className="space-y-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,audio/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                void handleMediaPick(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+              disabled={editMode || generating}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="size-4" />
+              Tambah media
+            </Button>
+            {media.length ? (
+              <div className="flex flex-wrap gap-2">
+                {media.map((asset) => (
+                  <div
+                    key={asset.id}
+                    className="relative flex items-center gap-2 rounded-lg border border-border bg-background/60 p-2 pr-7"
+                  >
+                    {asset.kind === "image" ? (
+                      <img
+                        src={asset.dataUrl}
+                        alt={asset.name}
+                        className="size-10 rounded object-cover"
+                      />
+                    ) : (
+                      <span className="grid size-10 place-items-center rounded bg-secondary text-[10px] uppercase">
+                        {asset.kind}
+                      </span>
+                    )}
+                    <span className="max-w-32 truncate text-xs">{asset.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Hapus ${asset.name}`}
+                      className="absolute right-1 top-1 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                      onClick={() => setMedia((prev) => prev.filter((m) => m.id !== asset.id))}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Lampirkan foto, logo, video, atau audio untuk dipakai di aplikasi.
+              </p>
+            )}
+          </div>
+
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button
               className="gap-2 sm:w-48"
