@@ -157,7 +157,7 @@ function Index() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: instruction,
-            currentCode: base,
+            currentCode: compactBase,
             history: priorHistory,
           }),
         });
