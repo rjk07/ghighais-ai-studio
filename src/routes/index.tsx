@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
-import { Github, Loader2, Sparkles, Wand2, Bot, Paperclip, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Github,
+  Loader2,
+  Sparkles,
+  Wand2,
+  Bot,
+  Paperclip,
+  X,
+} from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +21,7 @@ import { PreviewPane } from "@/components/app/PreviewPane";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { STARTER_CODE, stripFences } from "@/lib/ghighais";
 import { isMigrationPrompt, migrationInstruction } from "@/lib/migration";
+import { extractSecrets, hasDatabase } from "@/lib/secure-scan";
 import {
   applyMedia,
   fileToAsset,
@@ -49,6 +59,37 @@ function Logo() {
       <Bot className="size-5 text-primary-foreground" />
     </div>
   );
+}
+
+// Brankas backend: kirim data penting ke server, tidak disimpan di browser.
+async function vault(action: "save" | "status" | "clear", secrets?: Record<string, string>) {
+  const res = await fetch("/api/vault", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, secrets }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { keys?: string[]; error?: string };
+  if (!res.ok) throw new Error(data.error || "Brankas backend gagal diakses");
+  return data.keys ?? [];
+}
+
+/**
+ * Pindahkan password/kunci yang terlanjur ada di kode aplikasi ke backend,
+ * lalu sisakan placeholder aman di kode yang terlihat user.
+ */
+async function secureCode(code: string) {
+  const { code: safe, secrets } = extractSecrets(code);
+  if (!secrets.length) return code;
+  try {
+    await vault(
+      "save",
+      Object.fromEntries(secrets.map((s) => [`app_${s.key}`, s.value])),
+    );
+    toast.success(`${secrets.length} data penting dipindahkan ke backend`);
+    return safe;
+  } catch {
+    return code;
+  }
 }
 
 function Index() {
@@ -95,16 +136,33 @@ function Index() {
     if (saved !== null) setCode(saved);
     setPrompt(localStorage.getItem("ghighais:prompt") ?? "");
     setGithubUrl(localStorage.getItem("ghighais:github-url") ?? "");
+    // Data penting lama yang masih tersimpan di browser dipindahkan
+    // otomatis ke brankas backend, lalu dihapus dari browser.
+    const legacy: Record<string, string> = {};
     const tokens = localStorage.getItem("ghighais:db");
     if (tokens) {
       try {
-        setDbTokens(JSON.parse(tokens) as Record<string, string>);
+        const parsed = JSON.parse(tokens) as Record<string, string>;
+        setDbTokens(parsed);
+        for (const [id, value] of Object.entries(parsed)) {
+          if (value) legacy[`db_${id}`] = value;
+        }
       } catch {
-        localStorage.removeItem("ghighais:db");
+        /* abaikan data rusak */
       }
+      localStorage.removeItem("ghighais:db");
     }
     const gh = localStorage.getItem("ghighais:gh");
-    if (gh) setGhToken(gh);
+    if (gh) {
+      setGhToken(gh);
+      legacy["github_token"] = gh;
+      localStorage.removeItem("ghighais:gh");
+    }
+    if (Object.keys(legacy).length) {
+      void vault("save", legacy)
+        .then(() => toast.success("Data penting dipindahkan ke backend demi keamanan"))
+        .catch(() => undefined);
+    }
     const chat = localStorage.getItem("ghighais:chat");
     if (chat) {
       try {
@@ -115,6 +173,15 @@ function Index() {
     }
     setStorageReady(true);
   }, []);
+
+  // Notifikasi hanya muncul kalau aplikasi hasil generate belum memakai database
+  // dan user belum mengisi token database mana pun.
+  const needsDatabase =
+    !generating &&
+    code.trim().length > 0 &&
+    !hasDatabase(code) &&
+    !Object.values(dbTokens).some((v) => v.trim());
+
 
   useEffect(() => {
     if (!storageReady) return;
@@ -131,9 +198,13 @@ function Index() {
     localStorage.setItem("ghighais:github-url", githubUrl);
   }, [githubUrl, storageReady]);
 
+  // Token GitHub tidak lagi disimpan di browser; hanya di brankas backend.
   useEffect(() => {
-    if (!storageReady) return;
-    localStorage.setItem("ghighais:gh", ghToken);
+    if (!storageReady || !ghToken) return;
+    const id = setTimeout(() => {
+      void vault("save", { github_token: ghToken }).catch(() => undefined);
+    }, 600);
+    return () => clearTimeout(id);
   }, [ghToken, storageReady]);
 
   useEffect(() => {
@@ -184,7 +255,7 @@ function Index() {
         if (!final.toLowerCase().includes("<html")) {
           throw new Error("Hasil AI tidak lengkap, coba ulangi prompt");
         }
-        setCode(final);
+        setCode(await secureCode(final));
         setProgress(100);
         if (options?.track) {
           setHistory((prev) =>
@@ -305,7 +376,7 @@ function Index() {
         (data.content ?? "").toLowerCase().includes("</html>") &&
         (data.entry ?? "").toLowerCase().endsWith(".html");
       if (isFullPage) {
-        setCode(data.content as string);
+        setCode(await secureCode(data.content as string));
         toast.success(`Repo dibuka: ${data.entry} (${data.files?.length ?? 0} file)`);
         setHistory((prev) =>
           [
@@ -448,7 +519,8 @@ function Index() {
             onDbToken={(id, value) => {
               const next = { ...dbTokens, [id]: value };
               setDbTokens(next);
-              localStorage.setItem("ghighais:db", JSON.stringify(next));
+              // Token database hanya disimpan di brankas backend.
+              void vault("save", { [`db_${id}`]: value }).catch(() => undefined);
             }}
             ghToken={ghToken}
             onGhToken={setGhToken}
@@ -477,6 +549,22 @@ function Index() {
               Prompt unlimited · gratis
             </span>
           </div>
+
+          {needsDatabase ? (
+            <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Aplikasi ini belum punya database</p>
+                <p className="text-xs text-muted-foreground">
+                  Buka Menu → Pilihan Database, isi token database (Turso atau Supabase
+                  direkomendasikan), lalu minta AI menyimpan datanya. Token yang kamu isi
+                  disimpan di backend, bukan di browser.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+
 
           {history.length ? (
             <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-border bg-background/50 p-3">
