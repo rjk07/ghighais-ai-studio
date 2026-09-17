@@ -532,6 +532,22 @@ function Index() {
             </span>
           </div>
 
+          {needsDatabase ? (
+            <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Aplikasi ini belum punya database</p>
+                <p className="text-xs text-muted-foreground">
+                  Buka Menu → Pilihan Database, isi token database (Turso atau Supabase
+                  direkomendasikan), lalu minta AI menyimpan datanya. Token yang kamu isi
+                  disimpan di backend, bukan di browser.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+
+
           {history.length ? (
             <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-border bg-background/50 p-3">
               {history.map((item, i) => (
