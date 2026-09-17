@@ -167,9 +167,9 @@ function Index() {
           if (done) break;
           acc += decoder.decode(value, { stream: true });
           setProgress(Math.min(97, Math.round((acc.length / 4500) * 100)));
-          if (acc.length > 200) setCode(stripFences(acc));
+          if (acc.length > 200) setCode(applyMedia(stripFences(acc), mediaRef.current));
         }
-        const final = stripFences(acc);
+        const final = applyMedia(stripFences(acc), mediaRef.current);
         if (!final.toLowerCase().includes("<html")) {
           throw new Error("Hasil AI tidak lengkap, coba ulangi prompt");
         }
