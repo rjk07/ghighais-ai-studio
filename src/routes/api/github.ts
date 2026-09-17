@@ -8,6 +8,7 @@ type Body = {
   message?: string;
   content?: string;
   url?: string;
+  deep?: boolean;
 };
 
 const GH = "https://api.github.com";
@@ -151,11 +152,26 @@ export const Route = createFileRoute("/api/github")({
               .filter((f) => !/node_modules|package-lock|bun\.lock|\.min\./i.test(f))
               .slice(0, 8);
 
+            // Mode "deep" dipakai untuk migrasi database: ambil semua berkas yang
+            // menyimpan skema, migrasi, model, query dan konfigurasi database.
+            const dbPattern =
+              /(\.sql$|schema|migration|migrations|prisma|drizzle|knex|sequelize|typeorm|models?\/|entities?\/|seed|database|\bdb\b|supabase|turso|neon|mongo|firebase|\.env\.example$)/i;
+            const dbFiles = body.deep
+              ? files
+                  .filter((f) => dbPattern.test(f))
+                  .filter((f) => !/node_modules|package-lock|bun\.lock|\.min\./i.test(f))
+                  .slice(0, 80)
+              : [];
+
+            const limit = body.deep ? 400000 : 60000;
             let sources = preferred ? `--- FILE: ${preferred} ---\n${content}\n` : "";
-            for (const path of extra) {
-              if (sources.length > 60000) break;
+            const seen = new Set<string>([preferred ?? ""]);
+            for (const path of [...dbFiles, ...extra]) {
+              if (sources.length > limit) break;
+              if (seen.has(path)) continue;
+              seen.add(path);
               const text = await readFile(path);
-              if (text) sources += `\n--- FILE: ${path} ---\n${text.slice(0, 12000)}\n`;
+              if (text) sources += `\n--- FILE: ${path} ---\n${text.slice(0, 20000)}\n`;
             }
 
             return json({
