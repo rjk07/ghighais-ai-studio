@@ -11,6 +11,21 @@ Rules:
 - Multi-page apps: use in-page sections/hash navigation, never separate files.
 - Write text content in the language used by the user's instruction.`;
 
+const MIGRATION_SYSTEM = `DATABASE MIGRATION MODE.
+- You are also a senior database migration engineer.
+- Migrate EVERYTHING: every table, view, column, type, default, constraint, index, sequence,
+  enum, trigger, function, policy, grant and seed row. Losing a single object is a failure.
+- Never truncate with "..." or "and so on"; always list every object explicitly.
+- Keep going until the inventory and the checklist have the same number of objects.
+- Include target DDL, a resumable batched data-copy script, a row-count/checksum verification
+  script, the rewritten app connection code, and the required environment variable names.
+- Never invent or print credential values; use placeholders such as NEW_DB_URL.
+- Be compact: one short table row per object, no repeated prose, no restating the rules,
+  no commentary outside the page. Scripts go once, inside <pre><code> blocks.
+- Structure strictly: inventaris -> checklist -> DDL target -> script copy data ->
+  script verifikasi -> kode koneksi baru -> env vars -> perlu dicek manual. Then close the
+  document with </body></html> immediately. Never start the page over.`;
+
 type GatewayInput =
   | string
   | Array<{
@@ -43,6 +58,7 @@ export const Route = createFileRoute("/api/generate")({
         let body: {
           prompt?: string;
           currentCode?: string;
+          mode?: string;
           history?: Array<{ role?: string; text?: string }>;
         };
         try {
@@ -53,6 +69,9 @@ export const Route = createFileRoute("/api/generate")({
 
         const prompt = (body.prompt ?? "").trim();
         if (!prompt) return new Response("Prompt kosong", { status: 400 });
+
+        const isMigration = body.mode === "migration";
+        const systemPrompt = isMigration ? `${SYSTEM}\n${MIGRATION_SYSTEM}` : SYSTEM;
 
         const firstInput =
           body.currentCode && body.currentCode.trim().length > 0
@@ -98,10 +117,10 @@ export const Route = createFileRoute("/api/generate")({
             },
             body: JSON.stringify({
               model: "openai/gpt-6-astra",
-              instructions: SYSTEM,
+              instructions: systemPrompt,
               input,
               stream: true,
-              reasoning: { effort: "low" },
+              reasoning: { effort: isMigration ? "medium" : "low" },
             }),
           });
         }
@@ -157,7 +176,7 @@ export const Route = createFileRoute("/api/generate")({
             // Unlimited output: keep asking the model to continue until the
             // document is really finished. No token cap is ever sent.
             let attempts = 0;
-            while (!full.toLowerCase().includes("</html>") && attempts < 8) {
+            while (!full.toLowerCase().includes("</html>") && attempts < (isMigration ? 24 : 8)) {
               attempts += 1;
               const tail = full.slice(-6000);
               const next = await callGateway([
@@ -183,6 +202,15 @@ export const Route = createFileRoute("/api/generate")({
               const before = full.length;
               await pump(next, write);
               if (full.length === before) break;
+            }
+            // Jaminan dokumen selalu valid: tutup tag yang belum tertutup.
+            if (!full.toLowerCase().includes("</html>")) {
+              const lower = full.toLowerCase();
+              let closing = "";
+              if (lower.lastIndexOf("<pre") > lower.lastIndexOf("</pre>")) closing += "</code></pre>";
+              if (!lower.includes("</body>")) closing += "\n</body>";
+              closing += "\n</html>";
+              await write(closing);
             }
           } catch {
             /* upstream ended unexpectedly */

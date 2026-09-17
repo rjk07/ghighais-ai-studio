@@ -11,6 +11,7 @@ import { AppMenu, type Repo } from "@/components/app/AppMenu";
 import { PreviewPane } from "@/components/app/PreviewPane";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { STARTER_CODE, stripFences } from "@/lib/ghighais";
+import { isMigrationPrompt, migrationInstruction } from "@/lib/migration";
 import {
   applyMedia,
   fileToAsset,
@@ -142,7 +143,11 @@ function Index() {
   }, [history, storageReady]);
 
   const runGenerate = useCallback(
-    async (instruction: string, base: string, options?: { track?: string }) => {
+    async (
+      instruction: string,
+      base: string,
+      options?: { track?: string; mode?: "migration" },
+    ) => {
       setGenerating(true);
       setProgress(3);
       const priorHistory = historyRef.current;
@@ -158,6 +163,7 @@ function Index() {
           body: JSON.stringify({
             prompt: instruction,
             currentCode: compactBase,
+            mode: options?.mode,
             history: priorHistory,
           }),
         });
@@ -202,12 +208,58 @@ function Index() {
     [],
   );
 
+  async function handleMigration(instruction: string) {
+    setImporting(true);
+    toast.info("Membaca seluruh struktur database di repository…");
+    try {
+      const res = await fetch("/api/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "import",
+          url: githubUrl,
+          token: ghToken || undefined,
+          deep: true,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; sources?: string; repo?: string };
+      if (!res.ok) throw new Error(data.error || "Gagal membaca repository");
+      if (!data.sources) throw new Error("Tidak ada berkas database yang bisa dibaca");
+      setImporting(false);
+      toast.info("Memindahkan seluruh isi database ke database baru…");
+      return await runGenerate(
+        migrationInstruction({
+          prompt: instruction,
+          repo: data.repo ?? githubUrl,
+          sources: data.sources,
+          tokens: dbTokens,
+        }),
+        "",
+        { track: instruction, mode: "migration" },
+      );
+    } catch (error) {
+      toast.error((error as Error).message);
+      return false;
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleGenerate() {
     if (!prompt.trim()) {
       toast.error("Tulis instruksi dulu ya");
       return;
     }
     const instruction = prompt.trim();
+
+    // Pemindahan database dari repo GitHub: baca seluruh berkas database dulu,
+    // lalu minta AI memindahkan semuanya tanpa ada objek yang hilang.
+    if (isMigrationPrompt(instruction) && githubUrl.trim()) {
+      const ok = await handleMigration(instruction);
+      if (ok) setPrompt("");
+      return;
+    }
+
     const ok = await runGenerate(instruction + mediaInstruction(media), code, {
       track: media.length ? `${instruction} (+${media.length} media)` : instruction,
     });
