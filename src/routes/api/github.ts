@@ -76,29 +76,83 @@ export const Route = createFileRoute("/api/github")({
           if (body.action === "push") {
             if (!body.token || !body.repo || !body.content)
               return json({ error: "Data push tidak lengkap" }, 400);
+
+            // Push hanya menambah/memperbarui satu berkas aplikasi.
+            // Semua berkas lain di repo (termasuk berkas database) tetap utuh.
+            const repoRes = await fetch(`${GH}/repos/${body.repo}`, { headers: gh(body.token) });
+            if (!repoRes.ok) {
+              return json(
+                {
+                  error:
+                    repoRes.status === 404
+                      ? "Repository tidak ditemukan atau token belum punya akses ke repo ini"
+                      : "Tidak bisa membuka repository dengan token ini",
+                },
+                repoRes.status,
+              );
+            }
+            const repoInfo = (await repoRes.json()) as {
+              default_branch: string;
+              permissions?: { push?: boolean; admin?: boolean; maintain?: boolean };
+            };
+            const canPush =
+              repoInfo.permissions === undefined ||
+              repoInfo.permissions.push ||
+              repoInfo.permissions.admin ||
+              repoInfo.permissions.maintain;
+            if (!canPush) {
+              return json(
+                {
+                  error:
+                    "Token GitHub belum punya izin tulis (write) ke repo ini. Buat token dengan akses Contents: Read and write.",
+                },
+                403,
+              );
+            }
+
+            const branch = repoInfo.default_branch;
             const path = body.path?.trim() || "index.html";
             const fileUrl = `${GH}/repos/${body.repo}/contents/${path}`;
-            let sha: string | undefined;
-            const existing = await fetch(fileUrl, { headers: gh(body.token) });
-            if (existing.ok) {
-              const data = (await existing.json()) as { sha?: string };
-              sha = data.sha;
+
+            async function attempt(useSha: boolean) {
+              let sha: string | undefined;
+              if (useSha) {
+                const existing = await fetch(`${fileUrl}?ref=${branch}`, {
+                  headers: gh(body.token as string),
+                });
+                if (existing.ok) {
+                  const data = (await existing.json()) as { sha?: string };
+                  sha = data.sha;
+                }
+              }
+              return fetch(fileUrl, {
+                method: "PUT",
+                headers: { ...gh(body.token as string), "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  message: body.message || "Update dari GHIGHAIS AI",
+                  content: toBase64(body.content as string),
+                  branch,
+                  ...(sha ? { sha } : {}),
+                }),
+              });
             }
-            const res = await fetch(fileUrl, {
-              method: "PUT",
-              headers: { ...gh(body.token), "Content-Type": "application/json" },
-              body: JSON.stringify({
-                message: body.message || "Update dari GHIGHAIS AI",
-                content: toBase64(body.content),
-                ...(sha ? { sha } : {}),
-              }),
-            });
+
+            let res = await attempt(true);
+            // Konflik versi (409/422) terjadi kalau berkas berubah saat bersamaan.
+            // Ambil ulang sha terbaru lalu coba lagi, supaya push tidak ditolak.
+            for (let i = 0; i < 3 && (res.status === 409 || res.status === 422); i++) {
+              res = await attempt(true);
+            }
             if (!res.ok) {
               const err = (await res.json().catch(() => ({}))) as { message?: string };
-              return json({ error: err.message || "Gagal push" }, res.status);
+              const friendly =
+                res.status === 403 || res.status === 401
+                  ? "Push ditolak: token GitHub perlu izin tulis (Contents: Read and write) untuk repo ini."
+                  : err.message || "Gagal push";
+              return json({ error: friendly }, res.status);
             }
             const data = (await res.json()) as { content?: { html_url?: string } };
-            return json({ ok: true, url: data.content?.html_url });
+            return json({ ok: true, url: data.content?.html_url, branch, path });
           }
 
           if (body.action === "import") {
