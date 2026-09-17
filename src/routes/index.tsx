@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
-import { Github, Loader2, Sparkles, Wand2, Bot } from "lucide-react";
+import { Github, Loader2, Sparkles, Wand2, Bot, Paperclip, X } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,12 @@ import { AppMenu, type Repo } from "@/components/app/AppMenu";
 import { PreviewPane } from "@/components/app/PreviewPane";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { STARTER_CODE, stripFences } from "@/lib/ghighais";
+import {
+  applyMedia,
+  fileToAsset,
+  mediaInstruction,
+  type MediaAsset,
+} from "@/lib/media";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -61,8 +67,26 @@ function Index() {
   const [importing, setImporting] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [media, setMedia] = useState<MediaAsset[]>([]);
   const fixingRef = useRef(false);
   const historyRef = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const mediaRef = useRef<MediaAsset[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    mediaRef.current = media;
+  }, [media]);
+
+  async function handleMediaPick(files: FileList | null) {
+    if (!files?.length) return;
+    try {
+      const assets = await Promise.all(Array.from(files).map(fileToAsset));
+      setMedia((prev) => [...prev, ...assets].slice(0, 8));
+      toast.success(`${assets.length} media siap dipakai di aplikasi`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }
 
   useEffect(() => {
     setUser(localStorage.getItem("ghighais:user"));
@@ -122,13 +146,18 @@ function Index() {
       setGenerating(true);
       setProgress(3);
       const priorHistory = historyRef.current;
+      // Kirim kode dengan media kembali menjadi placeholder supaya ringan.
+      const compactBase = mediaRef.current.reduce(
+        (acc, asset, i) => acc.split(asset.dataUrl).join(`__MEDIA_${i + 1}__`),
+        base,
+      );
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: instruction,
-            currentCode: base,
+            currentCode: compactBase,
             history: priorHistory,
           }),
         });
@@ -143,9 +172,9 @@ function Index() {
           if (done) break;
           acc += decoder.decode(value, { stream: true });
           setProgress(Math.min(97, Math.round((acc.length / 4500) * 100)));
-          if (acc.length > 200) setCode(stripFences(acc));
+          if (acc.length > 200) setCode(applyMedia(stripFences(acc), mediaRef.current));
         }
-        const final = stripFences(acc);
+        const final = applyMedia(stripFences(acc), mediaRef.current);
         if (!final.toLowerCase().includes("<html")) {
           throw new Error("Hasil AI tidak lengkap, coba ulangi prompt");
         }
@@ -179,7 +208,9 @@ function Index() {
       return;
     }
     const instruction = prompt.trim();
-    const ok = await runGenerate(instruction, code, { track: instruction });
+    const ok = await runGenerate(instruction + mediaInstruction(media), code, {
+      track: media.length ? `${instruction} (+${media.length} media)` : instruction,
+    });
     if (ok) {
       setPrompt("");
       toast.success("Kode berhasil dibuat — lanjutkan dengan prompt berikutnya");
@@ -309,6 +340,7 @@ function Index() {
     setGithubUrl("");
     setCode("");
     setHistory([]);
+    setMedia([]);
     localStorage.setItem("ghighais:chat", "[]");
     setEditMode(false);
     localStorage.setItem("ghighais:prompt", "");
@@ -423,6 +455,66 @@ function Index() {
             disabled={editMode}
             className="font-body"
           />
+
+          <div className="space-y-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,audio/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                void handleMediaPick(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+              disabled={editMode || generating}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="size-4" />
+              Tambah media
+            </Button>
+            {media.length ? (
+              <div className="flex flex-wrap gap-2">
+                {media.map((asset) => (
+                  <div
+                    key={asset.id}
+                    className="relative flex items-center gap-2 rounded-lg border border-border bg-background/60 p-2 pr-7"
+                  >
+                    {asset.kind === "image" ? (
+                      <img
+                        src={asset.dataUrl}
+                        alt={asset.name}
+                        className="size-10 rounded object-cover"
+                      />
+                    ) : (
+                      <span className="grid size-10 place-items-center rounded bg-secondary text-[10px] uppercase">
+                        {asset.kind}
+                      </span>
+                    )}
+                    <span className="max-w-32 truncate text-xs">{asset.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Hapus ${asset.name}`}
+                      className="absolute right-1 top-1 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                      onClick={() => setMedia((prev) => prev.filter((m) => m.id !== asset.id))}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Lampirkan foto, logo, video, atau audio untuk dipakai di aplikasi.
+              </p>
+            )}
+          </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button
