@@ -64,6 +64,25 @@ async function vault(action: "save" | "status" | "clear", secrets?: Record<strin
   return data.keys ?? [];
 }
 
+/**
+ * Pindahkan password/kunci yang terlanjur ada di kode aplikasi ke backend,
+ * lalu sisakan placeholder aman di kode yang terlihat user.
+ */
+async function secureCode(code: string) {
+  const { code: safe, secrets } = extractSecrets(code);
+  if (!secrets.length) return code;
+  try {
+    await vault(
+      "save",
+      Object.fromEntries(secrets.map((s) => [`app_${s.key}`, s.value])),
+    );
+    toast.success(`${secrets.length} data penting dipindahkan ke backend`);
+    return safe;
+  } catch {
+    return code;
+  }
+}
+
 function Index() {
   const [user, setUser] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
