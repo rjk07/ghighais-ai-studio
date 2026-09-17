@@ -52,6 +52,18 @@ function Logo() {
   );
 }
 
+// Brankas backend: kirim data penting ke server, tidak disimpan di browser.
+async function vault(action: "save" | "status" | "clear", secrets?: Record<string, string>) {
+  const res = await fetch("/api/vault", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, secrets }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { keys?: string[]; error?: string };
+  if (!res.ok) throw new Error(data.error || "Brankas backend gagal diakses");
+  return data.keys ?? [];
+}
+
 function Index() {
   const [user, setUser] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
