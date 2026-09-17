@@ -174,6 +174,15 @@ function Index() {
     setStorageReady(true);
   }, []);
 
+  // Notifikasi hanya muncul kalau aplikasi hasil generate belum memakai database
+  // dan user belum mengisi token database mana pun.
+  const needsDatabase =
+    !generating &&
+    code.trim().length > 0 &&
+    !hasDatabase(code) &&
+    !Object.values(dbTokens).some((v) => v.trim());
+
+
   useEffect(() => {
     if (!storageReady) return;
     localStorage.setItem("ghighais:code", code);
