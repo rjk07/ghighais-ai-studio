@@ -108,16 +108,33 @@ function Index() {
     if (saved !== null) setCode(saved);
     setPrompt(localStorage.getItem("ghighais:prompt") ?? "");
     setGithubUrl(localStorage.getItem("ghighais:github-url") ?? "");
+    // Data penting lama yang masih tersimpan di browser dipindahkan
+    // otomatis ke brankas backend, lalu dihapus dari browser.
+    const legacy: Record<string, string> = {};
     const tokens = localStorage.getItem("ghighais:db");
     if (tokens) {
       try {
-        setDbTokens(JSON.parse(tokens) as Record<string, string>);
+        const parsed = JSON.parse(tokens) as Record<string, string>;
+        setDbTokens(parsed);
+        for (const [id, value] of Object.entries(parsed)) {
+          if (value) legacy[`db_${id}`] = value;
+        }
       } catch {
-        localStorage.removeItem("ghighais:db");
+        /* abaikan data rusak */
       }
+      localStorage.removeItem("ghighais:db");
     }
     const gh = localStorage.getItem("ghighais:gh");
-    if (gh) setGhToken(gh);
+    if (gh) {
+      setGhToken(gh);
+      legacy["github_token"] = gh;
+      localStorage.removeItem("ghighais:gh");
+    }
+    if (Object.keys(legacy).length) {
+      void vault("save", legacy)
+        .then(() => toast.success("Data penting dipindahkan ke backend demi keamanan"))
+        .catch(() => undefined);
+    }
     const chat = localStorage.getItem("ghighais:chat");
     if (chat) {
       try {
