@@ -358,7 +358,7 @@ function Index() {
         (data.content ?? "").toLowerCase().includes("</html>") &&
         (data.entry ?? "").toLowerCase().endsWith(".html");
       if (isFullPage) {
-        setCode(data.content as string);
+        setCode(await secureCode(data.content as string));
         toast.success(`Repo dibuka: ${data.entry} (${data.files?.length ?? 0} file)`);
         setHistory((prev) =>
           [
@@ -501,7 +501,8 @@ function Index() {
             onDbToken={(id, value) => {
               const next = { ...dbTokens, [id]: value };
               setDbTokens(next);
-              localStorage.setItem("ghighais:db", JSON.stringify(next));
+              // Token database hanya disimpan di brankas backend.
+              void vault("save", { [`db_${id}`]: value }).catch(() => undefined);
             }}
             ghToken={ghToken}
             onGhToken={setGhToken}
