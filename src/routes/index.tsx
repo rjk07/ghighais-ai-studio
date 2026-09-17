@@ -67,8 +67,26 @@ function Index() {
   const [importing, setImporting] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [media, setMedia] = useState<MediaAsset[]>([]);
   const fixingRef = useRef(false);
   const historyRef = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const mediaRef = useRef<MediaAsset[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    mediaRef.current = media;
+  }, [media]);
+
+  async function handleMediaPick(files: FileList | null) {
+    if (!files?.length) return;
+    try {
+      const assets = await Promise.all(Array.from(files).map(fileToAsset));
+      setMedia((prev) => [...prev, ...assets].slice(0, 8));
+      toast.success(`${assets.length} media siap dipakai di aplikasi`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }
 
   useEffect(() => {
     setUser(localStorage.getItem("ghighais:user"));
