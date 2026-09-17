@@ -161,9 +161,13 @@ function Index() {
     localStorage.setItem("ghighais:github-url", githubUrl);
   }, [githubUrl, storageReady]);
 
+  // Token GitHub tidak lagi disimpan di browser; hanya di brankas backend.
   useEffect(() => {
-    if (!storageReady) return;
-    localStorage.setItem("ghighais:gh", ghToken);
+    if (!storageReady || !ghToken) return;
+    const id = setTimeout(() => {
+      void vault("save", { github_token: ghToken }).catch(() => undefined);
+    }, 600);
+    return () => clearTimeout(id);
   }, [ghToken, storageReady]);
 
   useEffect(() => {
